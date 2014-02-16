@@ -153,8 +153,15 @@ class SerializableClosure implements Serializable
     {
         if($this->reflector === null)
         {
-            $this->reflector = new ReflectionClosure($this->closure, $this->code);
-            $this->code = null;
+            if (empty($this->code))
+            {
+                $this->reflector = new ReflectionClosure($this->closure);
+            }
+            else
+            {
+                $this->reflector = new ReflectionClosure($this->closure, $this->code['function'], $this->code['static']);
+                $this->code = null;
+            }
         }
         
         return $this->reflector;
@@ -317,15 +324,27 @@ class SerializableClosure implements Serializable
         $use = null;
         if ($variables = $reflector->getStaticVariables())
         {
+            if ($static = $reflector->getStatic())
+            {
+                foreach ($static as $s)
+                {
+                    unset($variables[$s]);
+                }
+            }
             $use = &$this->mapByReference($variables);
         }
-        
+        else
+        {
+            $static = array();
+        }
+
         $ret = serialize(array(
             'use' => $use,
             'function' => $reflector->getCode(),
             'scope' => $scope,
             'this' => $object,
             'self' => $this->reference,
+            'static' => $static,
         ));
         
         if(!--$this->scope->serializations && !--$this->scope->toserialize)
@@ -368,7 +387,10 @@ class SerializableClosure implements Serializable
             $this->closure = $this->closure->bindTo($this->code['this'], $this->code['scope']);
         }
         
-        $this->code = $this->code['function'];
+        $this->code = array(
+            'function' => $this->code['function'],
+            'static'   => $this->code['static'],
+        );
     }
     
     
@@ -408,7 +430,10 @@ class SerializableClosure implements Serializable
         
         setcode:
         
-        $this->code = $this->code['function'];
+        $this->code = array(
+            'function' => $this->code['function'],
+            'static'   => $this->code['static'],
+        );
         
         if(!--static::$unserializations)
         {
