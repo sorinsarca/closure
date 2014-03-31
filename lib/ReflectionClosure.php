@@ -18,20 +18,19 @@ use SplFileObject;
 class ReflectionClosure extends ReflectionFunction
 {
     protected $code;
-    protected $static_vars;
 
     
-    public function __construct(Closure $closure, $code = null, array $static_vars = array())
+    public function __construct(Closure $closure, $code = null)
     {
         $this->code = $code;
-        $this->static_vars = $static_vars;
         parent::__construct($closure);
     }
     
     public function getCode()
     {
-        if($this->code == null)
+        if($this->code === null)
         {
+            
             $_file_ = $this->getFileName();
             if (strpos($_file_, ClosureStream::STREAM_PROTO . '://') === 0)
             {
@@ -57,9 +56,6 @@ class ReflectionClosure extends ReflectionFunction
             $state = 'start';
             $open = 0;
             $code = '';
-            $static_var = false;
-            $sub_closure = false;
-            $static = array();
             foreach($tokens as &$token)
             {
                 // Replace magic constants
@@ -99,7 +95,6 @@ class ReflectionClosure extends ReflectionFunction
                             if($token[0] === T_STRING)
                             {
                                 $state = 'named_function';
-                                $static = array();
                                 $code = '';
                             }
                             
@@ -123,7 +118,8 @@ class ReflectionClosure extends ReflectionFunction
                             }
                             elseif($token === '}')
                             {
-                                if(--$open === 0)
+                                $open--;
+                                if($open === 0)
                                 {
                                     $state = 'start';
                                 }
@@ -137,62 +133,29 @@ class ReflectionClosure extends ReflectionFunction
                             if($token === '{')
                             {
                                 $open++;
-                                if ($sub_closure !== false)
-                                {
-                                    $sub_closure++;
-                                }
                             }
                             elseif($token === '}')
                             {
-                                if(--$open === 0)
+                                $open--;
+                                if($open === 0)
                                 {
                                     break 2;
-                                }
-                                if ($sub_closure !== false && --$sub_closure === 0)
-                                {
-                                    $sub_closure = false;
                                 }
                             }
                         }
                         else
                         {
-                            if ($token[0] == T_FUNCTION)
-                            {
-                                if ($sub_closure === false)
-                                {
-                                  $sub_closure = 0;  
-                                }
-                            }
-                            elseif ($sub_closure === false)
-                            {
-                                if ($token[0] == T_STATIC)
-                                {
-                                    $static_var = true;
-                                }
-                                elseif ($static_var && $token[0] == T_VARIABLE)
-                                {  
-                                    $static[] = ltrim($token[1], '$');
-                                    $static_var = false;
-                                }
-                            }
                             $code .= $token[1];
                         }
                         break;
-                }   
+                }
+                
             }
-            $this->static_vars = $static;
+            
             $this->code = $code;
         }
+        
         return $this->code;
-    }
-    
-    public function getStatic()
-    {
-        if ($this->code == null)
-        {
-            $this->getCode();
-        }
-        return $this->static_vars;
     }
     
 }
